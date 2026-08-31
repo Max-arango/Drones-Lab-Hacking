@@ -20,7 +20,7 @@ bun run db:push      # prisma db push --accept-data-loss
 bun run db:generate  # prisma generate
 ```
 
-No test runner is configured. `tests/*.sh` are runtime/container build scripts, not app tests. `Mathematics-Simulator/` is an unrelated stray sandbox (one `primes.test.ts`, no runner) — ignore unless asked.
+No test runner is configured. `tests/*.sh` are runtime/container build scripts, not app tests.
 
 ## Architecture — the two things that require reading multiple files
 
