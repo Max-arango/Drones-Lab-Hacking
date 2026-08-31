@@ -8,9 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ethical scope is a hard constraint: every command/target in content is a virtual lab (`10.10.10.0/24`, `drone-lab.local`, `localhost`). No real offensive automation, no outbound traffic — the terminal is simulated (see below). Keep new content inside this scope.
 
+## Layout
+
+The Next.js application lives in **`web/`**. Only project meta files sit at the repo root (`README.md`, `CLAUDE.md`, `worklog.md`, `LICENSE`). Run every command below from `web/`, and read every `src/…` path in this doc as relative to `web/`.
+
 ## Commands
 
 ```bash
+cd web               # everything below runs from here
 bun run dev          # dev server on :3000, tees to dev.log
 bun run build        # next build (standalone) + manual copy of static/ and public/ into .next/standalone
 bun run start        # runs the standalone server via bun, tees to server.log
