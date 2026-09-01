@@ -21,4 +21,7 @@ db/*.db
 # typescript
 *.tsbuildinfo
 
+# npm lockfile — the canonical lockfile is bun.lock, regenerated with `bun install`
+/package-lock.json
+
 .DS_Store

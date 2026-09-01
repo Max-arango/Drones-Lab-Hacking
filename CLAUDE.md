@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**DroneSec Lab** — an interactive educational platform teaching drone cybersecurity (defensive/CTF, lab-only). Next.js 16 App Router + React 19 + TypeScript + Tailwind 4 + shadcn/ui + Zustand + Prisma/SQLite. Runtime and package manager is **bun** (`bun.lock`). Single-user lab, no auth.
+**DroneSec Lab** — an interactive educational platform teaching drone cybersecurity (defensive/CTF, lab-only). Next.js 16 App Router + React 19 + TypeScript + Tailwind 4 + shadcn/ui + Zustand + Prisma/SQLite. Runtime and package manager is **bun** (`bun.lock`). Single-user lab by default — Supabase Auth + Postgres backend is **opt-in** for cross-device progress sync (see `supabase/`).
 
 Ethical scope is a hard constraint: every command/target in content is a virtual lab (`10.10.10.0/24`, `drone-lab.local`, `localhost`). No real offensive automation, no outbound traffic — the terminal is simulated (see below). Keep new content inside this scope.
 
@@ -31,12 +31,13 @@ No test runner is configured. `tests/*.sh` are runtime/container build scripts, 
 
 ### 1. Single-route SPA driven by Zustand + `location.hash`
 
-Only `/` ever renders (`src/app/page.tsx`). There is no file-based routing for views. Navigation is a discriminated-union `ViewState` in `src/store/nav-store.ts`, mirrored to `location.hash` so back/forward and deep links work (e.g. `#/module/01-linux/lesson/filesystem`).
+Only `/` ever renders (`src/app/page.tsx`). There is no file-based routing for views. Navigation is a discriminated-union `ViewState` in `src/store/nav-store.ts`, mirrored to `location.hash` so back/forward and deep links work (e.g. `#/module/01-linux/lesson/filesystem`, `#/leaderboard`, `#/profile`).
 
 To add a view, touch all three:
 1. Extend the `ViewKind` union + `parseHash()` in `src/store/nav-store.ts`.
 2. Add a render branch in `src/app/page.tsx`.
 3. Add the view component (exported from `@/components/views`).
+4. Add a nav entry in `src/components/layout/app-sidebar.tsx` if it deserves sidebar real estate.
 
 ### 2. Content engine — content is typed DATA, not components
 
@@ -57,12 +58,28 @@ Content is authored in Spanish following a fixed pedagogy (THEORY → VISUALIZAT
 
 ### Progress
 
-`src/store/progress-store.ts` — Zustand + `persist` to localStorage (completed lessons/labs, captured flags, score, activity). Single-user, no server, no auth.
+`src/store/progress-store.ts` — Zustand + `persist` to localStorage (completed lessons/labs, captured flags, score, activity). **Single-user, no server, no auth** is the default and continues to work without any backend.
+
+When the user opts into Supabase, the same store mirrors to the tables defined in `supabase/schema.sql` (one row per lesson/lab/flag, RLS-locked to `auth.uid()`). Wiring the client-side sync is **not** part of the current build — only the schema is shipped.
+
+### Optional backend — `supabase/`
+
+```
+supabase/
+├── schema.sql                 # canonical DDL, commented
+├── migrations/0001_init.sql   # what `supabase db push` applies
+├── seed.sql                   # empty by design (single-user lab)
+└── README.md                  # local-dev + deploy instructions
+```
+
+Tables: `profiles`, `lesson_progress`, `lab_progress`, `captured_flags`, `tools_learned`, `activity`, plus a public `leaderboard` view. All scoped via Row Level Security to the owning `auth.uid()`. Auth is delegated to `supabase.auth` (bcrypt + JWT) — never store passwords in app tables.
+
+Env vars consumed by the app (only when wired up): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. **Use the new `sb_publishable_*` format** — not the legacy `anon` JWT (`eyJ...`). The publishable key supports independent rotation. `web/.env.local.example` has the placeholders; copy it to `web/.env.local` and fill in the real values from the Supabase dashboard.
 
 ## Gotchas
 
 - **`next.config.ts` sets `typescript.ignoreBuildErrors: true`** — `bun run build` does NOT fail on type errors. Always run `bunx tsc --noEmit` to actually typecheck. `reactStrictMode` is off.
-- **Prisma schema (`prisma/schema.prisma`) is unused scaffold** — `User`/`Post` models, not wired to any feature. App state lives in localStorage, not the DB. Don't assume the DB backs anything.
+- **Prisma schema (`prisma/schema.prisma`) is unused scaffold** — `User`/`Post` models, not wired to any feature. The app has no Prisma client calls. The real (opt-in) DB lives in `supabase/` and is only used when the user signs in; localStorage remains the source of truth for guest mode.
 - Path alias `@/*` → `./src/*`.
 - Theme is fixed: dark terminal, emerald primary, amber accent — no blue/indigo.
 - The `build` script manually copies `.next/static` and `public/` into `.next/standalone/` because `output: "standalone"` doesn't include them.

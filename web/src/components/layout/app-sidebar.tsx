@@ -26,6 +26,7 @@ import {
   Wrench,
   BookA,
   Route,
+  User,
   ChevronDown,
   ChevronRight,
   CircleDot,
@@ -40,6 +41,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { modules, moduleGroups, moduleById, labs } from '@/lib/content/registry'
 import { useNavStore } from '@/store/nav-store'
 import { useProgressStore } from '@/store/progress-store'
+import { AuthButton } from '@/components/auth/auth-button'
 import type { ContentModule, ModuleGroup } from '@/lib/content/types'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -240,6 +242,30 @@ export function AppSidebar() {
               <BookA className="size-4" />
               Glossary
             </button>
+            <button
+              onClick={() => navigate({ kind: 'leaderboard' })}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+                currentView.kind === 'leaderboard'
+                  ? 'bg-primary/10 text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+              )}
+            >
+              <Trophy className="size-4" />
+              Leaderboard
+            </button>
+            <button
+              onClick={() => navigate({ kind: 'profile' })}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+                currentView.kind === 'profile'
+                  ? 'bg-primary/10 text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+              )}
+            >
+              <User className="size-4" />
+              Profile
+            </button>
           </div>
 
           <div className="h-px bg-sidebar-border" />
@@ -266,7 +292,7 @@ export function AppSidebar() {
       </ScrollArea>
 
       {/* Footer status */}
-      <div className="shrink-0 border-t border-sidebar-border bg-sidebar-accent/20 px-4 py-3">
+      <div className="shrink-0 space-y-2 border-t border-sidebar-border bg-sidebar-accent/20 px-4 py-3">
         <div className="flex items-center justify-between text-[11px]">
           <span className="font-mono-tight text-muted-foreground">
             {totalDone} completed
@@ -275,12 +301,13 @@ export function AppSidebar() {
             {score} pts
           </span>
         </div>
-        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted/40">
+        <div className="h-1 overflow-hidden rounded-full bg-muted/40">
           <div
             className="h-full rounded-full bg-primary transition-all"
             style={{ width: `${Math.min(100, (totalDone / Math.max(1, modules.reduce((a, m) => a + m.lessons.length, 0))) * 100)}%` }}
           />
         </div>
+        <AuthButton />
       </div>
     </aside>
   )

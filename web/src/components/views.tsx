@@ -23,6 +23,9 @@ import {
   TrendingUp,
   Flame,
   FlaskConical,
+  Trophy,
+  User as UserIcon,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -30,6 +33,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   modules,
   moduleById,
@@ -41,7 +54,10 @@ import {
   learningPaths,
 } from '@/lib/content/registry'
 import { useNavStore } from '@/store/nav-store'
-import { useProgressStore } from '@/store/progress-store'
+import { useProgressStore, type ActivityEntry } from '@/store/progress-store'
+import { useAuthStore } from '@/store/auth-store'
+import { supabase } from '@/lib/supabase/client'
+import type { Database } from '@/lib/supabase/types'
 import { LessonRenderer } from '@/components/content/lesson-renderer'
 import { useToast } from '@/hooks/use-toast'
 import type { ContentModule, Tool, GlossaryTerm } from '@/lib/content/types'
@@ -917,6 +933,471 @@ export function LearningPathView() {
             </Card>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Leaderboard view                                                    */
+/* ------------------------------------------------------------------ */
+
+type LeaderboardRow = Database['public']['Views']['leaderboard']['Row']
+
+const RANK_STYLES: Record<number, { tier: string; ring: string; icon: string }> = {
+  1: { tier: 'text-[oklch(0.85_0.15_85)]', ring: 'border-[oklch(0.7_0.12_85_/_0.6)]', icon: 'text-[oklch(0.85_0.15_85)]' },
+  2: { tier: 'text-[oklch(0.78_0.02_250)]', ring: 'border-[oklch(0.72_0.02_250_/_0.6)]', icon: 'text-[oklch(0.78_0.02_250)]' },
+  3: { tier: 'text-[oklch(0.72_0.1_50)]', ring: 'border-[oklch(0.65_0.1_50_/_0.6)]', icon: 'text-[oklch(0.72_0.1_50)]' },
+}
+
+function relativeTime(ts: number | null): string {
+  if (!ts) return ''
+  const diff = Date.now() - ts
+  const m = Math.floor(diff / 60_000)
+  if (m < 1) return 'hace unos segundos'
+  if (m < 60) return `hace ${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `hace ${h} h`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `hace ${d} d`
+  const mo = Math.floor(d / 30)
+  return `hace ${mo} mes${mo === 1 ? '' : 'es'}`
+}
+
+export function LeaderboardView() {
+  const navigate = useNavStore((s) => s.navigate)
+  const user = useAuthStore((s) => s.user)
+  const { toast } = useToast()
+  const [rows, setRows] = React.useState<LeaderboardRow[] | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(100)
+      if (cancelled) return
+      if (error) {
+        toast({ title: 'No se pudo cargar el leaderboard', description: error.message, variant: 'destructive' })
+        setRows([])
+        return
+      }
+      setRows((data ?? []) as LeaderboardRow[])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [toast])
+
+  const isSignedIn = !!user
+  const currentId = user?.id
+
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <Breadcrumbs
+        items={[
+          { label: 'Dashboard', onClick: () => navigate({ kind: 'dashboard' }) },
+          { label: 'Leaderboard' },
+        ]}
+      />
+      <div className="mt-4 flex items-center gap-2">
+        <Badge variant="outline" className="font-mono-tight text-[10px]">
+          <Trophy className="mr-1 size-2.5" />
+          Top 100
+        </Badge>
+      </div>
+      <h1 className="mt-3 font-mono-tight text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+        Leaderboard
+      </h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Ranking público de la comunidad. Suma puntos completando lecciones, labs y capturando flags.
+      </p>
+
+      {!isSignedIn && (
+        <Card className="mt-4 border-primary/20 bg-primary/[0.03]">
+          <CardContent className="flex items-center gap-3 py-3 text-sm text-foreground/85">
+            <Trophy className="size-4 text-primary" />
+            <span>
+              Inicia sesión desde la barra lateral para sincronizar tu progreso y aparecer en el ranking.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="mt-5">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-14 text-[10px] uppercase">#</TableHead>
+                <TableHead className="text-[10px] uppercase">Jugador</TableHead>
+                <TableHead className="text-right text-[10px] uppercase">Score</TableHead>
+                <TableHead className="hidden text-right text-[10px] uppercase sm:table-cell">Flags</TableHead>
+                <TableHead className="hidden text-right text-[10px] uppercase sm:table-cell">Lessons</TableHead>
+                <TableHead className="hidden text-right text-[10px] uppercase sm:table-cell">Labs</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows === null ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-6" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell><Skeleton className="ml-auto h-4 w-10" /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><Skeleton className="ml-auto h-4 w-6" /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><Skeleton className="ml-auto h-4 w-6" /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><Skeleton className="ml-auto h-4 w-6" /></TableCell>
+                  </TableRow>
+                ))
+              ) : rows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                    Be the first to capture a flag and appear here.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row, i) => {
+                  const rank = i + 1
+                  const tier = RANK_STYLES[rank]
+                  const isMe = !!currentId && row.user_id === currentId
+                  return (
+                    <TableRow
+                      key={row.user_id}
+                      className={cn(
+                        isMe && 'bg-primary/[0.06] ring-1 ring-inset ring-primary/30',
+                      )}
+                    >
+                      <TableCell className="font-mono-tight">
+                        <span
+                          className={cn(
+                            'inline-flex size-7 items-center justify-center rounded-full border text-xs',
+                            tier
+                              ? cn(tier.ring, tier.icon)
+                              : 'border-border/60 text-muted-foreground',
+                          )}
+                        >
+                          {rank}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {tier && <Trophy className={cn('size-3.5', tier.icon)} />}
+                          <span className={cn('font-medium', tier?.tier)}>
+                            {row.display_name ?? 'Anonymous'}
+                          </span>
+                          {isMe && (
+                            <Badge variant="outline" className="ml-1 border-primary/40 text-[9px] text-primary">
+                              tú
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono-tight text-sm tabular-nums">
+                        {row.score}
+                      </TableCell>
+                      <TableCell className="hidden text-right font-mono-tight text-sm tabular-nums sm:table-cell">
+                        {row.flags_count}
+                      </TableCell>
+                      <TableCell className="hidden text-right font-mono-tight text-sm tabular-nums sm:table-cell">
+                        {row.lessons_count}
+                      </TableCell>
+                      <TableCell className="hidden text-right font-mono-tight text-sm tabular-nums sm:table-cell">
+                        {row.labs_count}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Profile view                                                        */
+/* ------------------------------------------------------------------ */
+
+const ACTIVITY_ICONS: Record<ActivityEntry['type'], LucideIcon> = {
+  lesson: BookA,
+  lab: Crosshair,
+  flag: Flag,
+  module: Route,
+}
+
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: LucideIcon
+  label: string
+  value: number
+  hint?: string
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <Icon className="size-3.5 text-primary" />
+          {label}
+        </div>
+        <div className="mt-2 font-mono-tight text-2xl font-bold tabular-nums text-foreground">
+          {value}
+        </div>
+        {hint && <div className="mt-1 text-[10px] text-muted-foreground">{hint}</div>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function formatMemberSince(ts: number | null): string {
+  if (!ts) return '—'
+  const start = new Date(ts)
+  const days = Math.floor((Date.now() - start.getTime()) / 86_400_000)
+  const months = Math.floor(days / 30)
+  if (months >= 12) {
+    const y = Math.floor(months / 12)
+    return `${start.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })} · ${y} año${y === 1 ? '' : 's'}`
+  }
+  if (months >= 1) {
+    return `${start.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })} · ${months} mes${months === 1 ? '' : 'es'}`
+  }
+  return `${start.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })} · ${days} d`
+}
+
+export function ProfileView() {
+  const navigate = useNavStore((s) => s.navigate)
+  const user = useAuthStore((s) => s.user)
+  const signOut = useAuthStore((s) => s.signOut)
+  const loading = useAuthStore((s) => s.loading)
+
+  const completedLessons = useProgressStore((s) => s.completedLessons)
+  const completedLabs = useProgressStore((s) => s.completedLabs)
+  const flags = useProgressStore((s) => s.flags)
+  const toolsLearned = useProgressStore((s) => s.toolsLearned)
+  const score = useProgressStore((s) => s.score)
+  const startedAt = useProgressStore((s) => s.startedAt)
+  const activity = useProgressStore((s) => s.activity)
+
+  const [confirmSignOut, setConfirmSignOut] = React.useState(false)
+
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+        <Breadcrumbs
+          items={[
+            { label: 'Dashboard', onClick: () => navigate({ kind: 'dashboard' }) },
+            { label: 'Profile' },
+          ]}
+        />
+        <h1 className="mt-4 font-mono-tight text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          Profile
+        </h1>
+        <Card className="mt-5 border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <UserIcon className="size-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">
+              Inicia sesión desde la barra lateral para ver tu perfil y progreso sincronizado.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const flagsCount = Object.keys(flags).length
+  const recent = activity.slice(0, 10)
+  const memberSince = formatMemberSince(startedAt)
+  const email = user.email ?? ''
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+      <Breadcrumbs
+        items={[
+          { label: 'Dashboard', onClick: () => navigate({ kind: 'dashboard' }) },
+          { label: 'Profile' },
+        ]}
+      />
+
+      {/* Header card */}
+      <Card className="mt-4 border-primary/20 bg-primary/[0.03]">
+        <CardContent className="flex flex-wrap items-center gap-4 py-5">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <UserIcon className="size-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <h1 className="truncate font-mono-tight text-xl font-bold text-foreground">
+                {user.user_metadata?.display_name ?? email.split('@')[0]}
+              </h1>
+            </div>
+            {email && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{email}</p>
+            )}
+            <p className="mt-1 font-mono-tight text-[10px] text-muted-foreground">
+              Miembro: {memberSince}
+            </p>
+          </div>
+          <div className="flex gap-3 text-right">
+            <div>
+              <div className="font-mono-tight text-2xl font-bold tabular-nums text-primary">
+                {score}
+              </div>
+              <div className="font-mono-tight text-[10px] uppercase text-muted-foreground">
+                puntos
+              </div>
+            </div>
+            <div className="border-l border-border/60 pl-3">
+              <div className="font-mono-tight text-2xl font-bold tabular-nums text-foreground">
+                {flagsCount}
+              </div>
+              <div className="font-mono-tight text-[10px] uppercase text-muted-foreground">
+                flags
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="stats" className="mt-6">
+        <TabsList>
+          <TabsTrigger value="stats">Stats</TabsTrigger>
+          <TabsTrigger value="activity">Actividad</TabsTrigger>
+          <TabsTrigger value="flags">Flags</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="stats" className="mt-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatTile
+              icon={BookA}
+              label="Lessons completadas"
+              value={Object.keys(completedLessons).length}
+            />
+            <StatTile
+              icon={Crosshair}
+              label="Labs completados"
+              value={Object.keys(completedLabs).length}
+            />
+            <StatTile
+              icon={Flag}
+              label="Flags capturadas"
+              value={flagsCount}
+            />
+            <StatTile
+              icon={Wrench}
+              label="Herramientas aprendidas"
+              value={Object.keys(toolsLearned).length}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-4">
+          <Card>
+            <CardContent className="p-0">
+              {recent.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  Aún no hay actividad registrada.
+                </div>
+              ) : (
+                <ul className="divide-y divide-border/40">
+                  {recent.map((a, i) => {
+                    const Icon = ACTIVITY_ICONS[a.type] ?? Circle
+                    return (
+                      <li key={i} className="flex items-center gap-3 px-4 py-2.5">
+                        <Icon className="size-4 shrink-0 text-primary/70" />
+                        <span className="flex-1 truncate text-sm text-foreground/85">
+                          {a.label}
+                        </span>
+                        <span className="font-mono-tight text-[10px] text-muted-foreground">
+                          {relativeTime(a.ts)}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="flags" className="mt-4">
+          <Card>
+            <CardContent className="p-0">
+              {flagsCount === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  No has capturado ninguna flag todavía. Visita los Attack Labs desde la barra lateral.
+                </div>
+              ) : (
+                <ul className="divide-y divide-border/40">
+                  {Object.entries(flags).map(([labId, flag]) => {
+                    const lab = labById(labId)
+                    return (
+                      <li key={labId} className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+                        <Badge className="font-mono-tight text-[10px]">
+                          {lab ? `LAB ${lab.number}` : labId}
+                        </Badge>
+                        <span className="flex-1 truncate text-sm text-foreground/85">
+                          {lab?.title ?? 'Lab desconocido'}
+                        </span>
+                        <span className="font-mono-tight text-xs text-primary">{flag}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Sign out */}
+      <Separator className="my-6" />
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Sesión iniciada como <span className="font-mono-tight text-foreground">{email}</span>
+        </p>
+        {confirmSignOut ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">¿Cerrar sesión?</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmSignOut(false)}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                await signOut()
+                setConfirmSignOut(false)
+                navigate({ kind: 'dashboard' })
+              }}
+              disabled={loading}
+            >
+              <LogOut className="size-3.5" />
+              Confirmar
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmSignOut(true)}
+            disabled={loading}
+          >
+            <LogOut className="size-3.5" />
+            Cerrar sesión
+          </Button>
+        )}
       </div>
     </div>
   )

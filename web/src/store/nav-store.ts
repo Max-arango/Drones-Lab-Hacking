@@ -21,6 +21,8 @@ export type ViewKind =
   | 'learning-path'
   | 'toolbox'
   | 'search'
+  | 'leaderboard'
+  | 'profile'
 
 export interface ViewState {
   kind: ViewKind
@@ -65,6 +67,10 @@ function parseHash(hash: string): ViewState {
       return { kind: 'learning-path' }
     case 'search':
       return { kind: 'search', term: rest[0] }
+    case 'leaderboard':
+      return { kind: 'leaderboard' }
+    case 'profile':
+      return { kind: 'profile' }
     default:
       return { kind: 'dashboard' }
   }
@@ -92,6 +98,10 @@ export function viewToHash(view: ViewState): string {
       return '#/path'
     case 'search':
       return view.term ? `#/search/${view.term}` : '#/search'
+    case 'leaderboard':
+      return '#/leaderboard'
+    case 'profile':
+      return '#/profile'
     default:
       return '#/dashboard'
   }

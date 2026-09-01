@@ -1,0 +1,26 @@
+-- ============================================================================
+-- DroneSec Lab — seed.sql
+-- ============================================================================
+-- Intentionally empty.
+--
+-- The lab is single-user by default; users opt into Supabase auth only if
+-- they want cross-device progress sync. There are no demo accounts seeded.
+--
+-- To create your first user (locally):
+--
+--   # 1. Start the stack
+--   supabase start
+--
+--   # 2. Sign up via the app's signup form, OR via the Supabase Studio UI
+--   #    (http://127.0.0.1:54323) → Authentication → Users → Add user.
+--
+--   # 3. Promote to admin (optional, for content editing via the Studio):
+--   psql "$SUPABASE_DB_URL" -c \
+--     "update auth.users set raw_app_meta_data = raw_app_meta_data || '{\"role\":\"admin\"}'::jsonb where email = 'you@example.com';"
+--
+-- The `handle_new_user()` trigger (see schema.sql) will create the matching
+-- `public.profiles` row automatically — no extra setup needed.
+-- ============================================================================
+
+-- Nothing to seed.
+select 'seed complete — no users created' as status;

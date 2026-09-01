@@ -11,6 +11,8 @@ import {
   ToolboxView,
   GlossaryView,
   LearningPathView,
+  LeaderboardView,
+  ProfileView,
 } from '@/components/views'
 import { useNavStore } from '@/store/nav-store'
 
@@ -32,6 +34,8 @@ export default function Home() {
       {view.kind === 'glossary' && <GlossaryView term={view.term} />}
       {view.kind === 'learning-path' && <LearningPathView />}
       {view.kind === 'search' && <DashboardView />}
+      {view.kind === 'leaderboard' && <LeaderboardView />}
+      {view.kind === 'profile' && <ProfileView />}
     </AppShell>
   )
 }
