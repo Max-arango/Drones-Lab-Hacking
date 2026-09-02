@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
+import { LogIn, TriangleAlert } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -16,8 +17,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuthStore, type OAuthProvider } from '@/store/auth-store'
 
 interface AuthDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /**
+   * When true the dialog ignores `open`/`onOpenChange`, never closes on
+   * Escape/outside click, and hides the close button. Used by the first-load
+   * auth gate.
+   */
+  forceOpen?: boolean
+  /**
+   * When provided, shows a "Continuar como invitado" CTA under the OAuth
+   * section with an explicit warning that progress is not saved. Used by
+   * the first-load auth gate.
+   */
+  onContinueAsGuest?: () => void
 }
 
 function GoogleIcon() {
@@ -156,7 +169,46 @@ function OAuthRow({ onPick }: { onPick: (provider: OAuthProvider) => void }) {
   )
 }
 
-export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
+function ContinueAsGuest({
+  onPick,
+}: {
+  onPick: () => void
+}) {
+  return (
+    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+      <div className="flex items-start gap-2">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" />
+        <div className="space-y-2 text-muted-foreground">
+          <p className="text-amber-300">
+            <span className="font-mono-tight font-semibold">
+              Tu progreso NO se guardará
+            </span>
+            . El modo invitado es solo para esta sesión y este dispositivo.
+            Crea una cuenta o inicia sesión para sincronizar tus logros entre
+            dispositivos.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full gap-2"
+            onClick={onPick}
+          >
+            <LogIn className="size-3.5" />
+            Continuar como invitado
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function AuthDialog({
+  open = false,
+  onOpenChange,
+  forceOpen = false,
+  onContinueAsGuest,
+}: AuthDialogProps) {
   const signInWithEmail = useAuthStore((s) => s.signInWithEmail)
   const signUpWithEmail = useAuthStore((s) => s.signUpWithEmail)
   const signInWithOAuth = useAuthStore((s) => s.signInWithOAuth)
@@ -167,8 +219,27 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+    <Dialog
+      // When `forceOpen` is set, we always render the dialog open and
+      // intercept any close attempt so the gate cannot be dismissed.
+      open={forceOpen || open}
+      onOpenChange={(next) => {
+        if (forceOpen) return
+        onOpenChange?.(next)
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-[420px]"
+        {...(forceOpen
+          ? {
+              // No close button, no Escape, no outside-click dismiss.
+              showCloseButton: false,
+              onEscapeKeyDown: (e) => e.preventDefault(),
+              onPointerDownOutside: (e) => e.preventDefault(),
+              onInteractOutside: (e) => e.preventDefault(),
+            }
+          : { showCloseButton: true })}
+      >
         <DialogHeader>
           <DialogTitle>Sign in to sync progress</DialogTitle>
           <DialogDescription>
@@ -209,6 +280,22 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
             <OAuthRow onPick={handleOAuth} />
           </TabsContent>
         </Tabs>
+
+        {onContinueAsGuest && (
+          <>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  o sin cuenta
+                </span>
+              </div>
+            </div>
+            <ContinueAsGuest onPick={onContinueAsGuest} />
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )
