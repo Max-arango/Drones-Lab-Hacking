@@ -31,15 +31,24 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   initialize: async () => {
     if (get().initialized) return
-    const { data } = await supabase.auth.getSession()
-    set({
-      session: data.session,
-      user: data.session?.user ?? null,
-      initialized: true,
-    })
-    supabase.auth.onAuthStateChange((_event, session) => {
-      set({ session, user: session?.user ?? null })
-    })
+    // Always flip `initialized` to true — even on failure — so UI gates
+    // (e.g. AuthGate) can render their fallback path. Without this, a
+    // misconfigured Supabase client (empty env vars) would leave
+    // `initialized` at `false` forever and the auth gate would never show.
+    try {
+      const { data } = await supabase.auth.getSession()
+      set({
+        session: data.session,
+        user: data.session?.user ?? null,
+      })
+      supabase.auth.onAuthStateChange((_event, session) => {
+        set({ session, user: session?.user ?? null })
+      })
+    } catch {
+      // Swallow — user stays unauthenticated; AuthGate handles the rest.
+    } finally {
+      set({ initialized: true })
+    }
   },
 
   signInWithEmail: async (email, password) => {

@@ -169,7 +169,7 @@ export function AppSidebar() {
     Object.keys(completedLessons).length + Object.keys(completedLabs).length
 
   return (
-    <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
+    <aside className="flex h-full w-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
       {/* Logo / title */}
       <button
         onClick={() => navigate({ kind: 'dashboard' })}

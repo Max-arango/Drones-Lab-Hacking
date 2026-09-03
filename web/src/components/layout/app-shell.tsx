@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Desktop sidebar */}
       <div
         className={cn(
-          'hidden shrink-0 border-r border-border/60 transition-all duration-200 lg:block',
+          'hidden h-full shrink-0 border-r border-border/60 transition-all duration-200 lg:block',
           collapsed ? 'w-0 overflow-hidden' : 'w-64',
         )}
       >
