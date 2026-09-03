@@ -1,301 +1,37 @@
 'use client'
 
-import * as React from 'react'
-import { toast } from 'sonner'
-import { LogIn, TriangleAlert } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAuthStore, type OAuthProvider } from '@/store/auth-store'
+import { AuthFormCard } from '@/components/auth/auth-form-card'
 
 interface AuthDialogProps {
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-  /**
-   * When true the dialog ignores `open`/`onOpenChange`, never closes on
-   * Escape/outside click, and hides the close button. Used by the first-load
-   * auth gate.
-   */
-  forceOpen?: boolean
-  /**
-   * When provided, shows a "Continuar como invitado" CTA under the OAuth
-   * section with an explicit warning that progress is not saved. Used by
-   * the first-load auth gate.
-   */
-  onContinueAsGuest?: () => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-function GoogleIcon() {
+/**
+ * Sidebar-triggered dialog. The form internals live in
+ * `AuthFormCard` so this component is just the Radix Dialog shell
+ * the first-load `AuthGate` (see `auth-fullscreen.tsx`) does NOT
+ * use this — it renders `AuthFormCard` directly inside its own
+ * full-screen layout.
+ */
+export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4">
-      <path
-        fill="#FFC107"
-        d="M21.8 10.2H12v3.8h5.6c-.5 2.6-2.7 4.3-5.6 4.3-3.4 0-6.2-2.7-6.2-6.1S8.6 5.8 12 5.8c1.5 0 2.9.5 4 1.5l2.8-2.8C16.9 2.9 14.6 2 12 2 6.5 2 2 6.5 2 12s4.5 10 10 10c5 0 9.5-3.7 9.5-10 0-.6-.1-1.2-.2-1.8Z"
-      />
-      <path
-        fill="#FF3D00"
-        d="M3.2 7.3l3.1 2.3c.9-2.2 3.1-3.8 5.7-3.8 1.5 0 2.9.5 4 1.5l2.8-2.8C16.9 2.9 14.6 2 12 2 8 2 4.6 4.3 3.2 7.3Z"
-      />
-      <path
-        fill="#4CAF50"
-        d="M12 22c2.6 0 5-.9 6.8-2.5l-3.1-2.6c-1 .7-2.3 1.1-3.7 1.1-2.9 0-5.2-1.7-5.9-4.3l-3.2 2.4C4.5 19.6 8 22 12 22Z"
-      />
-      <path
-        fill="#1976D2"
-        d="M21.8 10.2H12v3.8h5.6c-.3 1.4-1.1 2.5-2.3 3.3l3.1 2.6c2.8-2.5 3.6-6.2 3.6-8.7 0-.6-.1-1.2-.2-1.8Z"
-      />
-    </svg>
-  )
-}
-
-function GitHubIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 fill-current">
-      <path d="M12 .5C5.7.5.7 5.5.7 11.8c0 5 3.2 9.2 7.7 10.7.6.1.8-.2.8-.6v-2c-3.1.7-3.8-1.5-3.8-1.5-.5-1.3-1.2-1.6-1.2-1.6-1-.7.1-.7.1-.7 1.1.1 1.7 1.1 1.7 1.1 1 1.7 2.6 1.2 3.2.9.1-.7.4-1.2.7-1.5-2.5-.3-5.2-1.3-5.2-5.7 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.2 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.5-1.5 7.7-5.7 7.7-10.7C23.3 5.5 18.3.5 12 .5Z" />
-    </svg>
-  )
-}
-
-function EmailForm({
-  mode,
-  onSubmit,
-}: {
-  mode: 'signin' | 'signup'
-  onSubmit: (email: string, password: string, displayName?: string) => Promise<{ error: string | null }>
-}) {
-  const loading = useAuthStore((s) => s.loading)
-  const [email, setEmail] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [displayName, setDisplayName] = React.useState('')
-  const [submitting, setSubmitting] = React.useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitting(true)
-    const { error } = await onSubmit(
-      email,
-      password,
-      mode === 'signup' ? displayName || undefined : undefined,
-    )
-    setSubmitting(false)
-    if (error) {
-      toast.error(error)
-    } else if (mode === 'signup') {
-      toast.success('Check your email to confirm your account.')
-    }
-  }
-
-  const busy = loading || submitting
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      {mode === 'signup' && (
-        <div className="space-y-1.5">
-          <Label htmlFor={`${mode}-name`}>Display name</Label>
-          <Input
-            id={`${mode}-name`}
-            type="text"
-            autoComplete="name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Pilot name"
-            disabled={busy}
-          />
-        </div>
-      )}
-      <div className="space-y-1.5">
-        <Label htmlFor={`${mode}-email`}>Email</Label>
-        <Input
-          id={`${mode}-email`}
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={busy}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${mode}-password`}>Password</Label>
-        <Input
-          id={`${mode}-password`}
-          type="password"
-          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-          required
-          minLength={6}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={busy}
-        />
-      </div>
-      <Button type="submit" className="w-full" disabled={busy}>
-        {mode === 'signin' ? 'Sign in' : 'Create account'}
-      </Button>
-    </form>
-  )
-}
-
-function OAuthRow({ onPick }: { onPick: (provider: OAuthProvider) => void }) {
-  const loading = useAuthStore((s) => s.loading)
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={loading}
-        onClick={() => onPick('google')}
-      >
-        <GoogleIcon />
-        Google
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={loading}
-        onClick={() => onPick('github')}
-      >
-        <GitHubIcon />
-        GitHub
-      </Button>
-    </div>
-  )
-}
-
-function ContinueAsGuest({
-  onPick,
-}: {
-  onPick: () => void
-}) {
-  return (
-    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
-      <div className="flex items-start gap-2">
-        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" />
-        <div className="space-y-2 text-muted-foreground">
-          <p className="text-amber-300">
-            <span className="font-mono-tight font-semibold">
-              Tu progreso NO se guardará
-            </span>
-            . El modo invitado es solo para esta sesión y este dispositivo.
-            Crea una cuenta o inicia sesión para sincronizar tus logros entre
-            dispositivos.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full gap-2"
-            onClick={onPick}
-          >
-            <LogIn className="size-3.5" />
-            Continuar como invitado
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export function AuthDialog({
-  open = false,
-  onOpenChange,
-  forceOpen = false,
-  onContinueAsGuest,
-}: AuthDialogProps) {
-  const signInWithEmail = useAuthStore((s) => s.signInWithEmail)
-  const signUpWithEmail = useAuthStore((s) => s.signUpWithEmail)
-  const signInWithOAuth = useAuthStore((s) => s.signInWithOAuth)
-
-  const handleOAuth = async (provider: OAuthProvider) => {
-    const { error } = await signInWithOAuth(provider)
-    if (error) toast.error(error)
-  }
-
-  return (
-    <Dialog
-      // When `forceOpen` is set, we always render the dialog open and
-      // intercept any close attempt so the gate cannot be dismissed.
-      open={forceOpen || open}
-      onOpenChange={(next) => {
-        if (forceOpen) return
-        onOpenChange?.(next)
-      }}
-    >
-      <DialogContent
-        className="sm:max-w-[420px]"
-        {...(forceOpen
-          ? {
-              // No close button, no Escape, no outside-click dismiss.
-              showCloseButton: false,
-              onEscapeKeyDown: (e) => e.preventDefault(),
-              onPointerDownOutside: (e) => e.preventDefault(),
-              onInteractOutside: (e) => e.preventDefault(),
-            }
-          : { showCloseButton: true })}
-      >
-        <DialogHeader>
-          <DialogTitle>Sign in to sync progress</DialogTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Sign in</DialogTitle>
           <DialogDescription>
-            Local-only progress keeps working without an account. Signing in
-            mirrors your progress across devices.
+            Sign in to sync your progress across devices.
           </DialogDescription>
         </DialogHeader>
-
-        <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign in</TabsTrigger>
-            <TabsTrigger value="signup">Sign up</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="signin" className="space-y-4">
-            <EmailForm mode="signin" onSubmit={signInWithEmail} />
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-card px-2 text-muted-foreground">or</span>
-              </div>
-            </div>
-            <OAuthRow onPick={handleOAuth} />
-          </TabsContent>
-
-          <TabsContent value="signup" className="space-y-4">
-            <EmailForm mode="signup" onSubmit={signUpWithEmail} />
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-card px-2 text-muted-foreground">or</span>
-              </div>
-            </div>
-            <OAuthRow onPick={handleOAuth} />
-          </TabsContent>
-        </Tabs>
-
-        {onContinueAsGuest && (
-          <>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  o sin cuenta
-                </span>
-              </div>
-            </div>
-            <ContinueAsGuest onPick={onContinueAsGuest} />
-          </>
-        )}
+        <AuthFormCard />
       </DialogContent>
     </Dialog>
   )
