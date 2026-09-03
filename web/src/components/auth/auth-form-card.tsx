@@ -2,10 +2,10 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { LogIn, TriangleAlert, Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAuthStore, type OAuthProvider } from '@/store/auth-store'
+import { useAuthStore } from '@/store/auth-store'
 import { cn } from '@/lib/utils'
 
 /* ──────────────────────────────────────────────────────────────────
@@ -24,16 +24,12 @@ const DICT = {
     signin: 'Sign in',
     signup: 'Create account',
     or: 'or continue with',
-    orNoAcc: 'or without an account',
     email: 'Email',
     password: 'Password',
     name: 'Display name',
-    forgot: 'Forgot password?',
-    guestTitle: 'No account, no problem',
-    guestBody:
-      'You can explore everything as a guest. Progress is stored only on this device and is lost if you clear site data or switch browsers.',
-    guestCta: 'Continue as guest',
-    createAcc: 'Create an account',
+    remember: 'Remember me on this device',
+    rememberHint:
+      "Without it you'll be signed out when you close the browser.",
   },
   es: {
     eyebrow: 'ACADEMIA · ACCESO',
@@ -43,16 +39,12 @@ const DICT = {
     signin: 'Iniciar sesión',
     signup: 'Crear cuenta',
     or: 'o continúa con',
-    orNoAcc: 'o sin cuenta',
     email: 'Correo',
     password: 'Contraseña',
     name: 'Nombre de piloto',
-    forgot: '¿Olvidaste la contraseña?',
-    guestTitle: 'Sin cuenta, sin problema',
-    guestBody:
-      'Puedes explorar todo como invitado. El progreso se guarda solo en este dispositivo y se pierde si borras los datos del sitio o cambias de navegador.',
-    guestCta: 'Continuar como invitado',
-    createAcc: 'Crear una cuenta',
+    remember: 'Recuérdame en este dispositivo',
+    rememberHint:
+      'Sin esta opción se cerrará la sesión al cerrar el navegador.',
   },
 } as const
 
@@ -178,21 +170,83 @@ function PasswordField({
 }
 
 /* ──────────────────────────────────────────────────────────────────
+ * RememberCheckbox — controlled by the form's `remember` state.
+ * Default: OFF (per project policy: log out on every visit unless
+ * the user explicitly asks to be remembered).
+ * ────────────────────────────────────────────────────────────────── */
+function RememberCheckbox({
+  id,
+  checked,
+  onChange,
+  disabled,
+  label,
+  hint,
+}: {
+  id: string
+  checked: boolean
+  onChange: (next: boolean) => void
+  disabled?: boolean
+  label: string
+  hint: string
+}) {
+  return (
+    <div className="space-y-1">
+      <label
+        htmlFor={id}
+        className={cn(
+          'flex cursor-pointer items-center gap-2 text-xs text-foreground/90 select-none',
+          disabled && 'cursor-not-allowed opacity-60',
+        )}
+      >
+        <span
+          className={cn(
+            'relative grid size-4 shrink-0 place-items-center rounded border transition-colors',
+            checked
+              ? 'border-primary bg-primary/30 text-primary-foreground'
+              : 'border-border bg-background/40 text-transparent',
+          )}
+        >
+          <input
+            id={id}
+            type="checkbox"
+            checked={checked}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.checked)}
+            className="absolute inset-0 cursor-inherit opacity-0"
+          />
+          <Check className="size-3" strokeWidth={3} />
+        </span>
+        <span>{label}</span>
+      </label>
+      <p className="pl-6 text-[10px] leading-relaxed text-muted-foreground">{hint}</p>
+    </div>
+  )
+}
+
+/* ──────────────────────────────────────────────────────────────────
  * EmailForm — pure presentational, delegates submit to the store
  * ────────────────────────────────────────────────────────────────── */
 function EmailForm({
   mode,
   lang,
   onSubmit,
+  emailRef,
 }: {
   mode: 'signin' | 'signup'
   lang: Lang
-  onSubmit: (email: string, password: string, displayName?: string) => Promise<{ error: string | null }>
+  onSubmit: (
+    email: string,
+    password: string,
+    remember: boolean,
+    displayName?: string,
+  ) => Promise<{ error: string | null }>
+  emailRef?: React.RefObject<HTMLInputElement | null>
 }) {
   const loading = useAuthStore((s) => s.loading)
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [displayName, setDisplayName] = React.useState('')
+  const [remember, setRemember] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
   const t = tFor(lang)
 
@@ -202,13 +256,18 @@ function EmailForm({
     const { error } = await onSubmit(
       email,
       password,
+      remember,
       mode === 'signup' ? displayName || undefined : undefined,
     )
     setSubmitting(false)
     if (error) {
       toast.error(error)
     } else if (mode === 'signup') {
-      toast.success(lang === 'es' ? 'Revisa tu correo para confirmar la cuenta.' : 'Check your email to confirm your account.')
+      toast.success(
+        lang === 'es'
+          ? 'Revisa tu correo para confirmar la cuenta.'
+          : 'Check your email to confirm your account.',
+      )
     }
   }
 
@@ -239,6 +298,7 @@ function EmailForm({
         onChange={(e) => setEmail(e.target.value)}
         disabled={busy}
         icon={<Mail />}
+        ref={emailRef}
       />
       <PasswordField
         id={`${mode}-password`}
@@ -246,6 +306,15 @@ function EmailForm({
         disabled={busy}
         required
         minLength={6}
+      />
+
+      <RememberCheckbox
+        id={`${mode}-remember`}
+        checked={remember}
+        onChange={setRemember}
+        disabled={busy}
+        label={t.remember}
+        hint={t.rememberHint}
       />
 
       <Button type="submit" className="w-full" disabled={busy}>
@@ -256,69 +325,55 @@ function EmailForm({
 }
 
 /* ──────────────────────────────────────────────────────────────────
- * OAuthRow — Google + GitHub buttons. Same callbacks as before.
+ * OAuthRow — Google + GitHub buttons.
  * ────────────────────────────────────────────────────────────────── */
-function OAuthRow({ onPick }: { onPick: (provider: OAuthProvider) => void }) {
+function OAuthRow({
+  onPick,
+}: {
+  onPick: (provider: 'google' | 'github', remember: boolean) => void
+}) {
   const loading = useAuthStore((s) => s.loading)
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={loading}
-        onClick={() => onPick('google')}
-        className="gap-2"
-      >
-        <GoogleIcon />
-        Google
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={loading}
-        onClick={() => onPick('github')}
-        className="gap-2"
-      >
-        <GitHubIcon />
-        GitHub
-      </Button>
-    </div>
-  )
-}
+  const [remember, setRemember] = React.useState(false)
+  const t = tFor('en') // OAuth row copy is tiny enough to share the EN shape
 
-/* ──────────────────────────────────────────────────────────────────
- * ContinueAsGuest — amber warning block. Only rendered when the
- * parent passes `onContinueAsGuest`.
- * ────────────────────────────────────────────────────────────────── */
-function ContinueAsGuest({ lang, onPick }: { lang: Lang; onPick: () => void }) {
-  const t = tFor(lang)
   return (
-    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
-      <div className="flex items-start gap-2">
-        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" />
-        <div className="space-y-2">
-          <p className="font-mono-tight text-[10px] uppercase tracking-widest text-amber-300">
-            {t.guestTitle}
-          </p>
-          <p className="text-muted-foreground">{t.guestBody}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full gap-2"
-            onClick={onPick}
-          >
-            <LogIn className="size-3.5" />
-            {t.guestCta}
-          </Button>
-        </div>
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={loading}
+          onClick={() => onPick('google', remember)}
+          className="gap-2"
+        >
+          <GoogleIcon />
+          Google
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={loading}
+          onClick={() => onPick('github', remember)}
+          className="gap-2"
+        >
+          <GitHubIcon />
+          GitHub
+        </Button>
       </div>
+      <RememberCheckbox
+        id="oauth-remember"
+        checked={remember}
+        onChange={setRemember}
+        disabled={loading}
+        label={t.remember}
+        hint={t.rememberHint}
+      />
     </div>
   )
 }
 
 /* ──────────────────────────────────────────────────────────────────
- * Divider — the "or" / "or without an account" hairline label
+ * Divider — the "or" hairline label
  * ────────────────────────────────────────────────────────────────── */
 function Divider({ label }: { label: string }) {
   return (
@@ -340,33 +395,29 @@ export interface AuthFormCardProps {
   /**
    * Optional EN/ES strings. When omitted, defaults to 'en' and the
    * LangToggle in the full-screen gate is the source of truth.
-   * The sidebar dialog always passes 'en' (kept stable for now).
+   * The sidebar dialog always passes 'en'.
    */
   lang?: Lang
   /**
-   * When provided, a guest CTA block is rendered. Used by the gate.
-   * The sidebar dialog omits it.
-   */
-  onContinueAsGuest?: () => void
-  /**
-   * autoFocus the email input on mount. Gate passes `true` so the
-   * first keypress starts typing.
+   * autoFocus the email input on mount. The sidebar dialog omits
+   * it; the gate passes `true` so the first keypress starts typing.
    */
   autoFocusEmail?: boolean
 }
 
-export function AuthFormCard({
-  lang = 'en',
-  onContinueAsGuest,
-  autoFocusEmail = false,
-}: AuthFormCardProps) {
+export function AuthFormCard({ lang = 'en', autoFocusEmail = false }: AuthFormCardProps) {
+  const emailRef = React.useRef<HTMLInputElement | null>(null)
+
+  React.useEffect(() => {
+    if (autoFocusEmail) emailRef.current?.focus()
+  }, [autoFocusEmail])
   const signInWithEmail = useAuthStore((s) => s.signInWithEmail)
   const signUpWithEmail = useAuthStore((s) => s.signUpWithEmail)
   const signInWithOAuth = useAuthStore((s) => s.signInWithOAuth)
   const t = tFor(lang)
 
-  const handleOAuth = async (provider: OAuthProvider) => {
-    const { error } = await signInWithOAuth(provider)
+  const handleOAuth = async (provider: 'google' | 'github', remember: boolean) => {
+    const { error } = await signInWithOAuth(provider, remember)
     if (error) toast.error(error)
   }
 
@@ -389,24 +440,27 @@ export function AuthFormCard({
         </TabsList>
 
         <TabsContent value="signin" className="mt-4 space-y-4">
-          <EmailForm mode="signin" lang={lang} onSubmit={signInWithEmail} />
+          <EmailForm
+            mode="signin"
+            lang={lang}
+            onSubmit={signInWithEmail}
+            emailRef={emailRef}
+          />
           <Divider label={t.or} />
           <OAuthRow onPick={handleOAuth} />
         </TabsContent>
 
         <TabsContent value="signup" className="mt-4 space-y-4">
-          <EmailForm mode="signup" lang={lang} onSubmit={signUpWithEmail} />
+          <EmailForm
+            mode="signup"
+            lang={lang}
+            onSubmit={signUpWithEmail}
+            emailRef={emailRef}
+          />
           <Divider label={t.or} />
           <OAuthRow onPick={handleOAuth} />
         </TabsContent>
       </Tabs>
-
-      {onContinueAsGuest && (
-        <>
-          <Divider label={t.orNoAcc} />
-          <ContinueAsGuest lang={lang} onPick={onContinueAsGuest} />
-        </>
-      )}
     </div>
   )
 }

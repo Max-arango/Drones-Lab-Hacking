@@ -331,11 +331,7 @@ function LangToggle({
 /* ──────────────────────────────────────────────────────────────────
  * AuthFullScreen — the first-load gate. Renders directly (no Dialog).
  * ────────────────────────────────────────────────────────────────── */
-export interface AuthFullScreenProps {
-  onContinueAsGuest: () => void
-}
-
-export function AuthFullScreen({ onContinueAsGuest }: AuthFullScreenProps) {
+export function AuthFullScreen() {
   // Lazy initializer: read <html lang> on first render. On the server
   // `document` is undefined; during hydration the value matches the
   // SSR fallback ('en'), so no mismatch.
@@ -381,7 +377,6 @@ export function AuthFullScreen({ onContinueAsGuest }: AuthFullScreenProps) {
             >
               <AuthFormCard
                 lang={lang}
-                onContinueAsGuest={onContinueAsGuest}
                 autoFocusEmail
               />
             </div>
